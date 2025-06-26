@@ -9,18 +9,16 @@ export class TireRackService {
   constructor(
     private normalize: NormalizeService,
     private tireService: TireService,
-    private proxyService: ProxyService,
+    // private proxyService: ProxyService,
   ) {}
 
   async scrape() {
     let browser;
 
     try {
-      // Uncomment for proxy later if needed
-      const proxy = await this.proxyService.getProxy();
-      browser = await puppeteer.launch({ headless: true, args: [`--proxy-server=${proxy}`] });
-
-    //   browser = await puppeteer.launch({ headless: true });
+      // const proxy = await this.proxyService.getProxy();
+      // browser = await puppeteer.launch({ headless: true, args: [`--proxy-server=${proxy}`] });
+      browser = await puppeteer.launch({ headless: true });
 
       const page = await browser.newPage();
 
@@ -31,7 +29,7 @@ export class TireRackService {
       await page.setViewport({ width: 1280, height: 800 });
 
       // Retry logic for slow proxies
-      const gotoWithRetry = async (url: string, options: any, maxAttempts = 5) => {
+      const gotoWithRetry = async (url: string, options: any, maxAttempts = 10) => {
         let attempts = 0;
         while (attempts < maxAttempts) {
           try {
