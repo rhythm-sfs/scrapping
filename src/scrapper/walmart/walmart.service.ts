@@ -10,13 +10,42 @@ puppeteer.use(StealthPlugin());
 
 @Injectable()
 export class WalmartService {
+  // Add width, ratio, diameter arrays (same as DiscountTire for now)
+  private readonly widths = [225, 235];
+  private readonly ratios = [40, 45];
+  private readonly diameters = [17, 17.5];
+
   constructor(
     private readonly normalize: NormalizeService,
     private readonly tireService: TireService,
   ) {}
 
-  async scrape(zip = '10001') {
-    // --- Proxy setup (replace with your working proxy) ---
+  // Scrape all combinations
+  public async scrapeAllCombinations(zip = '10001') {
+    const totalCombinations = this.widths.length * this.ratios.length * this.diameters.length;
+    let processedCombinations = 0;
+    for (const width of this.widths) {
+      for (const ratio of this.ratios) {
+        for (const diameter of this.diameters) {
+          processedCombinations++;
+          try {
+            console.log(`Walmart: Scraping combination ${processedCombinations}/${totalCombinations} - Width: ${width}, Ratio: ${ratio}, Diameter: ${diameter}`);
+            await this.scrape(zip, width, ratio, diameter);
+            // Add a random delay between scrapes (3-6 seconds)
+            const delay = 3000 + Math.random() * 3000;
+            await new Promise(res => setTimeout(res, delay));
+          } catch (error) {
+            console.error(`Walmart: Error scraping combination ${processedCombinations}/${totalCombinations}:`, error.message);
+            continue;
+          }
+        }
+      }
+    }
+    console.log(`Walmart: Completed scraping all ${totalCombinations} combinations!`);
+  }
+
+  // Update scrape to accept width, ratio, diameter
+  async scrape(zip = '10001', width?: number, ratio?: number, diameter?: number) {
     const proxy = process.env.SCRAPER_PROXY || '';
     const launchArgs = [
       '--no-sandbox',
@@ -24,7 +53,7 @@ export class WalmartService {
     ];
     if (proxy) {
       launchArgs.push(`--proxy-server=${proxy}`);
-      console.log('🛡️ Using proxy:', proxy);
+      console.log(' Using proxy:', proxy);
     }
 
     const browser = await puppeteer.launch({
@@ -41,9 +70,12 @@ export class WalmartService {
       'accept-language': 'en-US,en;q=0.9',
     });
 
-    // Remove zip code from the search URL for default location
-    const searchUrl = `https://www.walmart.com/search?q=225%2F45r17+tires`;
-    console.log(`🔍 Visiting: ${searchUrl}`);
+    // Build Walmart search URL dynamically
+    if (!width || !ratio || !diameter) {
+      throw new Error('width, ratio, and diameter must be provided');
+    }
+    const searchUrl = `https://www.walmart.com/search?q=${width}%2F${ratio}r${diameter}+tires`;
+    console.log(` Visiting: ${searchUrl}`);
     await page.goto(searchUrl, { waitUntil: 'domcontentloaded' });
     await new Promise(res => setTimeout(res, 5000)); // wait for DOM updates
 
@@ -64,30 +96,94 @@ export class WalmartService {
 
     for (const item of items) {
       try {
+        // Extract title
         const title = await item.$eval(
           'span[data-automation-id="product-title"]',
           el => el.textContent?.trim() || ''
         ).catch(() => '');
 
+        // Extract price
         const priceDollars = await item.$eval(
           'div[data-automation-id="product-price"] span.f2',
           el => el.textContent?.trim() || '0'
         ).catch(() => '');
-
         const priceCents = await item.$eval(
           'div[data-automation-id="product-price"] span.f6.f5-l',
           el => el.textContent?.trim() || '00'
         ).catch(() => '');
-
         const price = `${priceDollars}.${priceCents}`;
 
-        if (!title || !price) continue;
+        // Extract product URL
+        const url = await item.$eval(
+          'a.w-100.h-100.z-1',
+          el => el.getAttribute('href') || ''
+        ).catch(() => '');
+        const fullUrl = url ? `https://www.walmart.com${url}` : '';
 
-        const brand = title.split(' ')[0] || '';
-        const model = title.replace(brand, '').trim();
-        const size = '225/45R17'; // Or extract from title dynamically if needed
+        // Extract image
+        const image = await item.$eval(
+          'img',
+          el => el.getAttribute('src') || ''
+        ).catch(() => '');
 
-        const normalized = this.normalize.normalize({ brand, model, size, price }, 'Walmart');
+        // Extract item_availability (if available)
+        const item_availability = await item.$eval(
+          '.prod-ProductOffer-oosMsg',
+          el => el.textContent?.trim() || ''
+        ).catch(() => '');
+
+        // Parse brand, model, size, loadRange from title
+        let brand = '', model = '', size = '', loadRange = '', style = '', ecoFocus = '', servDesc = '', utqg = '';
+        if (title) {
+          // List of known brands
+          const knownBrands = [
+            'Continental', 'Pirelli', 'Bridgestone', 'Kumho', 'Nexen', 'Goodyear', 'Yokohama', 'Hankook', 'Michelin',
+            'Falken', 'Cooper', 'General', 'GT Radial', 'Nokian', 'Kenda', 'Firestone', 'Dunlop', 'Sailun', 'Lexani', 'Sumitomo', 'Fullway'
+          ];
+          // Find size
+          const sizeMatch = title.match(/\d{3}\/\d{2,3}[A-Z]*R\d{2}(?:\.\d)?/i);
+          size = sizeMatch ? sizeMatch[0] : `${width}/${ratio}R${diameter}`;
+
+          // Find brand (first occurrence in title)
+          let brandIndex = -1, matchedBrand = '';
+          for (const b of knownBrands) {
+            const idx = title.toLowerCase().indexOf(b.toLowerCase());
+            if (idx !== -1 && (brandIndex === -1 || idx < brandIndex)) {
+              brandIndex = idx;
+              matchedBrand = b;
+            }
+          }
+          brand = matchedBrand || title.split(' ')[0];
+
+          // Model: everything between brand and size
+          if (brandIndex !== -1 && sizeMatch) {
+            const modelStart = brandIndex + brand.length;
+            const modelEnd = title.toLowerCase().indexOf(size.toLowerCase());
+            if (modelEnd > modelStart) {
+              model = title.substring(modelStart, modelEnd).trim();
+            } else {
+              model = title.replace(brand, '').replace(size, '').trim();
+            }
+          } else {
+            model = title.replace(brand, '').replace(size, '').trim();
+          }
+
+          // LoadRange: XL, SL, C, D, E, F, RF
+          const loadMatch = title.match(/\b(XL|SL|C|D|E|F|RF)\b/i);
+          loadRange = loadMatch ? loadMatch[1] : '';
+        }
+
+        // Use loop variables for width, ratio, diameter, and zipcode argument
+        const widthStr = width?.toString() || '';
+        const ratioStr = ratio?.toString() || '';
+        const diameterStr = diameter?.toString() || '';
+        const zipcodeStr = zip?.toString() || '';
+
+        const normalized = this.normalize.normalize(
+          { brand, model, size, price, width: widthStr, ratio: ratioStr, diameter: diameterStr, zipcode: zipcodeStr, url: fullUrl, image, item_availability, style, ecoFocus, loadRange, servDesc, utqg, retailer: 'Walmart' },
+          'Walmart',
+        );
+
         await this.tireService.saveTire({
           ...normalized,
           scrapedAt: new Date(),

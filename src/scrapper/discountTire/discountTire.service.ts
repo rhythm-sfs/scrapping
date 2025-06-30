@@ -14,7 +14,35 @@ export class DiscountTireService {
     private readonly tireService: TireService,
   ) {}
 
-  async scrape(zip = '10001') {
+  // Hardcoded tire size combinations (same as TireRackService)
+  private readonly widths = [225, 235];
+  private readonly ratios = [40, 45];
+  private readonly diameters = [17, 17.5];
+
+  public async scrapeAllCombinations(zip = '10001') {
+    const totalCombinations = this.widths.length * this.ratios.length * this.diameters.length;
+    let processedCombinations = 0;
+    for (const width of this.widths) {
+      for (const ratio of this.ratios) {
+        for (const diameter of this.diameters) {
+          processedCombinations++;
+          try {
+            console.log(`DiscountTire: Scraping combination ${processedCombinations}/${totalCombinations} - Width: ${width}, Ratio: ${ratio}, Diameter: ${diameter}`);
+            await this.scrape(zip, width, ratio, diameter);
+            // Add a random delay between scrapes (3-6 seconds)
+            const delay = 3000 + Math.random() * 3000;
+            await new Promise(res => setTimeout(res, delay));
+          } catch (error) {
+            console.error(`DiscountTire: Error scraping combination ${processedCombinations}/${totalCombinations}:`, error.message);
+            continue;
+          }
+        }
+      }
+    }
+    console.log(`DiscountTire: Completed scraping all ${totalCombinations} combinations!`);
+  }
+
+  async scrape(zip = '10001', width?: number, ratio?: number, diameter?: number) {
     const proxy = process.env.SCRAPER_PROXY || '';
     const launchArgs = [
       '--no-sandbox',
@@ -42,7 +70,12 @@ export class DiscountTireService {
       'accept-language': 'en-US,en;q=0.9',
     });
 
-    const searchUrl = `https://www.discounttire.com/fitmentresult/tires/size/225-45-17`;
+    // Use provided width, ratio, diameter if available, otherwise default
+    if (width && ratio && diameter) {
+      var searchUrl = `https://www.discounttire.com/fitmentresult/tires/size/${width}-${ratio}-${diameter}`;
+    } else {
+      throw new Error('width, ratio, and diameter must be provided');
+    }
     console.log(`🔍 Visiting: ${searchUrl}`);
     await page.goto(searchUrl, { waitUntil: 'domcontentloaded' });
     await new Promise(res => setTimeout(res, 5000));
@@ -85,10 +118,28 @@ export class DiscountTireService {
         const priceRaw = await product.$eval('span.price', el => el.textContent?.trim() || '');
         const price = priceRaw.replace(/[^\d.]/g, '');
 
-        if (!brand || !model || !price) continue;
+        // Extract url
+        const url = await product.$eval('a.product-image', el => el.getAttribute('href') || '').catch(() => '');
+        // Extract image
+        const image = await product.$eval('a.product-image img', el => el.getAttribute('src') || '').catch(() => '');
+        // Extract item_availability
+        const item_availability = await product.$eval('.product-availability-message span', el => el.textContent?.trim() || '').catch(() => '');
+        // Extract style, ecoFocus, loadRange, servDesc, utqg if available (set to empty string if not found)
+        // These may not be present in DiscountTire, so set as empty for now
+        const style = '';
+        const ecoFocus = '';
+        const loadRange = '';
+        const servDesc = '';
+        const utqg = '';
+
+        // Use loop variables for width, ratio, diameter, and zipcode argument
+        const widthStr = width?.toString() || '';
+        const ratioStr = ratio?.toString() || '';
+        const diameterStr = diameter?.toString() || '';
+        const zipcodeStr = zip?.toString() || '';
 
         const normalized = this.normalize.normalize(
-          { brand, model, size, price },
+          { brand, model, size, price, width: widthStr, ratio: ratioStr, diameter: diameterStr, zipcode: zipcodeStr, url, image, item_availability, style, ecoFocus, loadRange, servDesc, utqg, retailer: 'DiscountTire' },
           'DiscountTire',
         );
 

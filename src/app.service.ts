@@ -12,19 +12,13 @@ export class AppService implements OnModuleInit {
     private readonly walmartService: WalmartService,
     private readonly discountTireService:DiscountTireService
   ) {}
+
   async onModuleInit() {
-    const zip = '10001';
-    const start = Date.now();
-    console.log(' Starting all scrapers in parallel...');
-
-    await Promise.all([
-      // this.tireRackService.scrape(),
-      // this.bjService.scrape(zip),
-      // this.walmartService.scrape(zip),
-      this.discountTireService.scrape(zip)
-    ]);
-
-    const end = Date.now();
-    console.log(`All scrapers completed in ${(end - start) / 1000}s`);
+    console.log('Starting all scrapers...');
+    // await this.tireRackService.scrapeAllCombinations();
+    // await this.bjService.scrape('10001');
+    await this.walmartService.scrapeAllCombinations('10001');
+    // await this.discountTireService.scrapeAllCombinations('10001');
+    console.log('All scrapers finished!');
   }
 }

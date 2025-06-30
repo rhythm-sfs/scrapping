@@ -1,36 +1,64 @@
+// tire.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
-import { ApiProperty } from '@nestjs/swagger';
 
 export type TireDocument = Tire & Document;
 
 @Schema()
 export class Tire {
-  @ApiProperty()
-  @Prop()
+  @Prop({ required: true })
   brand: string;
 
-  @ApiProperty()
-  @Prop()
+  @Prop({ required: true })
   model: string;
 
-  @ApiProperty()
-  @Prop()
+  @Prop({ required: true })
+  price: string;
+
+  @Prop({ required: true })
   size: string;
 
-  @ApiProperty()
+  @Prop({ required: true })
+  width: string;
+
+  @Prop({ required: true })
+  ratio: string;
+
+  @Prop({ required: true })
+  diameter: string;
+
+  @Prop({ required: true })
+  zipcode: string;
+
   @Prop()
-  price: number;
+  url: string;
 
-  @ApiProperty()
   @Prop()
-  retailer: string;
+  image?: string;
 
-
-
-  @ApiProperty({ type: Date })
-  @Prop()
+  @Prop({ default: Date.now })
   scrapedAt: Date;
+
+  @Prop()
+  item_availability?: string;
+
+  @Prop()
+  style?: string;
+
+  @Prop()
+  ecoFocus?: string;
+
+  @Prop()
+  loadRange?: string;
+
+  @Prop()
+  servDesc?: string;
+
+  @Prop()
+  utqg?: string;
+
+  @Prop({ required: true })
+  retailer: string;
 }
 
 export const TireSchema = SchemaFactory.createForClass(Tire);

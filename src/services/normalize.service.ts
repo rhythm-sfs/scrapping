@@ -8,13 +8,24 @@ export class NormalizeService {
     }
 
     return {
-      brand: data.brand.trim(),
-      model: data.model.trim(),
-      size: data.size.trim(),
-      price: parseFloat(data.price) || 0,
-      retailer,
+      brand: data.brand?.trim() || '',
+      model: data.model?.trim() || '',
+      price: (typeof data.price === 'string' ? data.price : data.price?.toString()) || '',
+      size: data.size?.trim() || '',
+      width: data.width || '',
+      ratio: data.ratio || '',
+      diameter: data.diameter || '',
+      zipcode: data.zipcode || '',
       url: data.url || '',
-      scrapedAt: new Date().toISOString(),
+      image: data.image || '',
+      item_availability: data.item_availability || '',
+      style: data.style || '',
+      ecoFocus: data.ecoFocus || '',
+      loadRange: data.loadRange || '',
+      servDesc: data.servDesc || '',
+      utqg: data.utqg || '',
+      scrapedAt: data.scrapedAt ? new Date(data.scrapedAt) : new Date(),
+      retailer: retailer || '',
     };
   }
 }
