@@ -15,8 +15,8 @@ export class AppService implements OnModuleInit {
 
   async onModuleInit() {
     console.log('Starting all scrapers...');
-    // await this.tireRackService.scrapeAllCombinations();
-    await this.walmartService.scrapeAllCombinations('10001');
+    await this.tireRackService.scrapeAllCombinations();
+    // await this.walmartService.scrapeAllCombinations('10001');
     // await this.discountTireService.scrapeAllCombinations('10001');
     console.log('All scrapers finished!');
   }
